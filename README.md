@@ -1,2 +1,2 @@
 # identity-test
-run using node simple-script.js
+run using node simple-script-ssi.js
