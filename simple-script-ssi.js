@@ -1,9 +1,3 @@
-// goal for today
-// run simple test script
-	// use node create npm init
-// create simple web interface
-// how to add api key to request header
-
 // npm install api --save
 const sdk = require('api')('@trinsic/v1.0#1mld74kq6w8ws5');
 const authToken = '-fXgxPjJhehNoI54wXIQysCzXWYdX-4XTl03IjQROHM'
@@ -77,8 +71,6 @@ const createCredential = (attributes) => {
 		return credentialValues;  
 	}
 }
-
-
 
 // =====================================
 // Accept credential
