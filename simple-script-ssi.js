@@ -1,21 +1,62 @@
 // npm install api --save
-const sdk = require('api')('@trinsic/v1.0#1mld74kq6w8ws5');
+// const sdk = require('api')('@trinsic/v1.0#1mld74kq6w8ws5');
 const authToken = '-fXgxPjJhehNoI54wXIQysCzXWYdX-4XTl03IjQROHM'
+const {
+  CredentialsServiceClient,
+  ProviderServiceClient,
+  WalletServiceClient,
+  Credentials,
+  ProviderCredentials 
+} = require("@trinsic/service-clients");
+const { LocalStorage } = require("node-localstorage");
+var localStorage = new LocalStorage('./scratch')
+
+// Credentials API
+const credentialsClient = new CredentialsServiceClient(
+    new Credentials(authToken),
+    { noRetryPolicy: true }
+);
+
+// Provider API
+const providerClient = new ProviderServiceClient(
+    new ProviderCredentials(authToken),
+    { noRetryPolicy: true }
+);
+
+// Wallet API
+const walletClient = new WalletServiceClient(
+    new Credentials(authToken),
+    { noRetryPolicy: true }
+);
 
 // =====================================
 // create wallet
-const createWallet = () => {
-	sdk.CreateWallet('{}', {
-			Accept: 'text/plain',
-			Authorization: authToken
-		})
-		.then(res => {
-			console.log(res)
-			resolve(res.walletId);
-		})
-		.catch(err => {
-			console.error(err)
-		});
+const createWallet = async (ownerName) => {
+
+	let tempWalletId = localStorage.getItem("walletId");
+
+	console.log("tempWalletId", tempWalletId, typeof(tempWalletId));
+
+	if(tempWalletId) {
+		console.log("create new wallet")
+	} else {
+		console.log("use existing wallet")
+	}
+
+	try {
+		let wallet = await walletClient.createWallet({walletId: null, ownerName: ownerName});
+		console.log(`wallet created${wallet}`)
+
+		// store wallet id in local storage
+		localStorage.setItem('walletId', wallet.walletId)
+
+		return wallet.walletId;
+	} catch (error) {
+		console.error(error)		
+	}
+	
+	
+
 }
 
 // =====================================
@@ -23,92 +64,71 @@ const createWallet = () => {
 // issuer credentials api
 // copy offerUrl from response, does not require connectionId
 // https://docs.trinsic.id/reference/createcredential
-const createCredential = (attributes) => {
-	const credentialDefinition = {
+const createCredential = async (attributes) => {
+	let credential = {
+		"definitionId": null,
+		"automaticIssuance":true,
+		"credentialValues":{}
+	};
+
+	// ----------- 1 create credential definition
+	let credentialDefinition = await credentialsClient.createCredentialDefinition({
 		"supportRevocation":true,
 		"tag":"login",
 		"name":"login",
 		"version":"0.1",
 		"attributes": attributes
-	};
+	})
 
-	// ----------- 1 create credential definition
-	sdk.CreateCredentialDefinition(credentialDefinition, {
-		Accept: 'application/json', 
-		Authorization: authToken})
-	  .then(res => {
-	  	console.log("credential definition created", res)
+	credential['definitionId'] = credentialDefinition.definitionId;
 
-		let credential = {
-			"definitionId":res.definitionId,
-			"automaticIssuance":true,
-			"credentialValues":{}
-		};
+	credential['credentialValues'] = appendStringToCredentialValues(credentialDefinition.attributes)
 
-		credential['credentialValues'] = appendStringToCredentialValues(credentialDefinition.attributes)
-		
-		// ----------- 2 create credential and associate to definition id
-		sdk.CreateCredential(credential, {
-			Accept: 'application/json', 
-			Authorization: authToken})
-		  .then(res => {
-		  	resolve(res.offerUrl)
-		  	console.log("credential created", res)
-		  })
-		  .catch(err => console.error(err));
-	  })
-	  .catch(err => console.error(err));
-
-  	const appendStringToCredentialValues = (credentialDefinitionAttributes) => {
-		let credentialValues = {};
-
-		for (const item in credentialDefinitionAttributes) {
-			credentialValues[credentialDefinitionAttributes.attribute[item]] = "string"		
-		}
-
-		console.log("credential values updated", credentialValues);
-
-		return credentialValues;  
-	}
+	// ----------- 2 create credential and associate to definition id
+	return await credentialsClient.createCredential(credential)
 }
+
 
 // =====================================
 // Accept credential
 // wallet api
 // Accept credential through offerUrl/qr code, does not require connectionId
 // https://docs.trinsic.id/reference/acceptcredential
-const acceptCredential = (walletId, offerURL) => {
-sdk.AcceptCredential(
-	{credentialData: offerURL},
-	{
-		walletId: walletId,
-		Accept: 'text/plain', 
-		Authorization: authToken
-	})
-  .then(res => console.log("accept credential", res))
-  .catch(err => console.error(err));
+const acceptCredential = async (offerURL) => {
+	let credential = await walletClient.acceptCredential(offerURL)
+	console.log(`accept credential response${credential}`);
+	return;
 }
 
 // =====================================
 // list credentials
 // for credentials with no connectionId
-const listCredentials = (walletId) => {
-	const sdk = require('api')('@trinsic/v1.0#1mld74kq6w8ws5');
-
-	sdk.ListCredentials({
-	  walletId: walletId,
-	  Accept: 'text/plain',
-	  Authorization: authToken
-	})
-  	.then(res => console.log(res))
-  	.catch(err => console.error(err));
+const listCredentials = async (walletId) => {
+	let credentials = await walletClient.listCredentials(walletId)
+	console.log(`credentials${credentials}`);
+	return;
 }
 
+// =====================================
+// append string type to request create credential 
+const appendStringToCredentialValues = (credentialDefinitionAttributes) => {
+	let credentialValues = {};
+
+	for (const item in credentialDefinitionAttributes) {
+		credentialValues[credentialDefinitionAttributes.attribute[item]] = "string"		
+	}
+
+	console.log(`credential values updated${credentialValues}`);
+
+	return credentialValues;  
+}
+
+// =====================================
 const main = () => {
-	const walletId = createWallet();
-	const offerURL = createCredential(["First Name", "Email"]);
-	acceptCredential(walletId, offerURL);
-	listCredentials(walletId)
+	const wallet = createWallet("DenverTest2");
+	// const credential = createCredential(["First Name", "Email"]);
+	// acceptCredential(wallet.walletId, credential.offerURL);
+	// listCredentials(wallet.walletId)
 }
 
 main();
