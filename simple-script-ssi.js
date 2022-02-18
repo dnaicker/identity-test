@@ -1,6 +1,7 @@
 // npm install api --save
 // const sdk = require('api')('@trinsic/v1.0#1mld74kq6w8ws5');
-const authToken = '-fXgxPjJhehNoI54wXIQysCzXWYdX-4XTl03IjQROHM'
+const authToken = process.env.ACCESSTOK;
+require('dotenv').config();
 const {
   CredentialsServiceClient,
   ProviderServiceClient,
@@ -44,15 +45,19 @@ const createWallet = async (ownerName) => {
 	}
 
 	try {
-		let wallet = await walletClient.createWallet({walletId: null, ownerName: ownerName});
-		console.log(`wallet created${wallet}`)
+		let ownerName = null; // Can be null
+		let walletId = null; // Can be null
+		let wallet = await walletClient.createWallet({
+				ownerName: ownerName,
+				walletId: walletId
+		});
 
 		// store wallet id in local storage
 		localStorage.setItem('walletId', wallet.walletId)
 
 		return wallet.walletId;
 	} catch (error) {
-		console.error(error)		
+		console.debug(error)		
 	}
 	
 	
